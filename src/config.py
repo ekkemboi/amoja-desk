@@ -29,7 +29,7 @@ class Config:
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI = os.environ.get(
-        "GOOGLE_REDIRECT_URI", "http://localhost:5000/auth/callback"
+        "GOOGLE_REDIRECT_URI", "http://localhost:5000/api/auth/callback"
     )
 
     # Cookie Security

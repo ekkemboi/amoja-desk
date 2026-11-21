@@ -26,12 +26,38 @@ metrics, trade history, accounts, favorites and analytics.
 
 No Docker or database server is required.
 
+## Configuration
+
+Settings come from environment variables. Local development runs on defaults,
+so no configuration is needed to get started. To customise, copy the template
+and edit it:
+
+```sh
+cp .env.example .env
+```
+
+`make` targets use `uv run`, which loads `.env` automatically.
+
+| Variable | Purpose |
+| --- | --- |
+| `SECRET_KEY` | Flask session signing key; required in production |
+| `JWT_SECRET_KEY` | Signs JWT access and refresh tokens; required in production |
+| `DATABASE_URL` | Database location, default `sqlite:///instance/amoja-desk.db` |
+| `GOOGLE_CLIENT_ID` | Google sign-in client ID (optional) |
+| `GOOGLE_CLIENT_SECRET` | Google sign-in client secret (optional) |
+| `GOOGLE_REDIRECT_URI` | Defaults to `http://localhost:5000/api/auth/callback` |
+
+Email/password registration works without Google credentials. The production
+config refuses to start if `SECRET_KEY` or `JWT_SECRET_KEY` is missing.
+
 ## Development
 
 ```sh
 make init     # uv sync + create instance/amoja-desk.db
-make dev     # http://localhost:5000
+make dev      # http://localhost:5000
 ```
+
+Open http://localhost:5000/login and register the first account.
 
 `make help` lists all tasks. Equivalent commands:
 
@@ -63,8 +89,13 @@ serialized, so avoid running many app workers against the same file.
 
 ```sh
 make test     # unit/API tests on in-memory SQLite
-make test-e2e # Playwright tests; run `make run` in another terminal first
+make test-e2e # Playwright tests; install browsers and start `make dev` first
 ```
+
+End-to-end tests drive a visible Chromium window against
+`http://localhost:5000`, so install the browser once with
+`uv run playwright install chromium` and keep `make dev` running in another
+terminal.
 
 ## Production
 
