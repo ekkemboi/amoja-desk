@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Brokers - TradeLogger{% endblock %}
+{% block title %}Brokers - Amoja Desk{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -11,6 +11,8 @@
             Add Connection
         </button>
     </div>
+
+    <p class="text-sm text-text-light">Broker sync is not available yet. Saved connections do not import trades. Add trades manually from the dashboard.</p>
 
     <!-- Add Broker Modal -->
     <div id="broker-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center hidden z-50">
@@ -102,7 +104,7 @@ async function loadBrokers() {
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs px-2 py-1 rounded-full ${c.is_active ? 'bg-success/10 text-success' : 'bg-bg-surface text-text-light'}">
-                    ${c.is_active ? 'Active' : 'Inactive'}
+                    ${c.is_active ? 'Saved' : 'Inactive'}
                 </span>
                 <button onclick="deleteBroker('${c.id}')" class="btn-danger text-xs px-3 py-1">Delete</button>
             </div>

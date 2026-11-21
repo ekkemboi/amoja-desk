@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}TradeLogger{% endblock %}</title>
+    <title>{% block title %}Amoja Desk{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -371,7 +371,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
                     </svg>
                 </div>
-                <span class="text-lg font-bold text-text-primary tracking-tight">TradeLogger</span>
+                <span class="text-lg font-bold text-text-primary tracking-tight">Amoja Desk</span>
             </a>
         </div>
 
@@ -413,24 +413,6 @@
                 <i data-lucide="wallet"></i>
                 <span>Accounts</span>
             </a>
-            <a href="/backtest"
-               hx-get="/backtest"
-               hx-target="main"
-               hx-push-url="true"
-               hx-swap="innerHTML"
-               class="sidebar-link {% if request.path == '/backtest' %}active{% endif %}">
-                <i data-lucide="play-circle"></i>
-                <span>Backtest</span>
-            </a>
-            <a href="/import"
-               hx-get="/import"
-               hx-target="main"
-               hx-push-url="true"
-               hx-swap="innerHTML"
-               class="sidebar-link {% if request.path == '/import' %}active{% endif %}">
-                <i data-lucide="upload"></i>
-                <span>Import</span>
-            </a>
             <a href="/analytics"
                hx-get="/analytics"
                hx-target="main"
@@ -466,6 +448,7 @@
             <div id="user-nav-section">
                 <!-- Will be populated by auth.js -->
             </div>
+            {% include "partials/source_notice.html" %}
         </div>
     </aside>
     {% endif %}

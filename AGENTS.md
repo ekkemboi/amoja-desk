@@ -1,72 +1,86 @@
-# TradeLogger - Agent Guidelines
+# Amoja Desk - Agent Guidelines
 
-TradeLogger is a trade journaling system with a Flask backend, PostgreSQL database, and Electron desktop widget for manual trade entry. The web dashboard displays metrics and trade history using a **v2 sidebar design with HTMX for SPA-like navigation**.
+Amoja Desk is a self-hosted trade journaling system with a Flask backend, SQLite
+database, JWT API and a web dashboard. The dashboard uses a **v2 sidebar design
+with HTMX for SPA-like navigation**.
 
-### Recent Updates (v2 Sidebar Redesign)
+## Brand & Naming
 
-- **Layout**: Left sidebar (260px) instead of top navbar
-- **Colors**: Green primary (#22C55E) instead of amber
-- **Font**: System font stack (Inter removed)
-- **Navigation**: HTMX-powered SPA-like navigation (sidebar persists)
-- **Authentication**: Login page with theme toggle and "remember me" checkbox
+- **Amoja** is the master personal brand; it means **A1** / top-tier.
+- **Amoja Desk** is the application name (display with a space).
+- Slugs, package name and database use `amoja-desk`
+  (`instance/amoja-desk.db`, `pyproject.toml` name `amoja-desk`).
+- Planned modules: **Amoja Replay** (backtesting/replay),
+  **Amoja Playbook** (strategies and rule adherence),
+  **Amoja Journal** (daily journal), **Amoja Kipimo** (analytics).
+- Avoid standalone descriptive trading names; they collide with existing
+  products (TraderMate, TradeMate, Edgebook, TradeTally, TradeFrame, EdgeLog,
+  TradeLore, Tradeprint, Pipfolio).
+- Before a public launch, check trademark classes 9 (software), 36 (finance)
+  and 42 (SaaS); existing Amoja marks and a UK software company exist.
+
+See `docs/BRANDING.md` for the full naming record.
 
 ## Build & Development
 
 ```bash
-# Setup
-cd ~/PROJECTS/TradeLogger
-source .venv/bin/activate          # or: uv sync
-
-# Start database (Docker)
-sg docker -c "docker compose up -d postgres"
+# Setup (see `make help` for all tasks)
+cd ~/PROJECTS/amoja-desk
+make init                          # uv sync + apply migrations
+# or: uv sync && uv run alembic upgrade head
 
 # Run Flask server
-python -m src.app                  # http://localhost:5000
+uv run python -m src.app           # or: make run -> http://localhost:5000
 
 # Run all tests
-python -m pytest tests/ -v
+uv run pytest tests/ -v            # or: make test
 
 # Run single test
-python -m pytest tests/test_trades.py::TestCreateTrade::test_create_trade_success -v
+uv run pytest tests/trades/test_add_trade.py::TestCreateTrade::test_create_trade_success -v
 
 # Run tests by class
-python -m pytest tests/test_trades.py::TestGetTrades -v
+uv run pytest tests/trades/test_add_trade.py::TestGetTrades -v
 
 # Run tests by keyword
-python -m pytest tests/ -k "create_trade" -v
-
-# Desktop widget (Electron)
-cd desktop && bun start
+uv run pytest tests/ -k "create_trade" -v
 ```
+
+The database is a single SQLite file at `instance/amoja-desk.db`, created by
+Alembic. Run `make db-backup` before schema changes. Do not add a database
+server or Docker dependency; SQLite is intentional.
 
 ## Project Structure
 
 ```
 src/
   app.py              # Flask app factory
-  config.py           # Dev/Test/Prod configs
-  models.py           # SQLAlchemy models (Trade, FavoriteProduct)
-  routes/             # API blueprints (trades, metrics, favorites)
-  services/           # Business logic (TradeService)
+  config.py           # Dev/Test/Prod configs (SQLite by default)
+  models.py           # SQLAlchemy models (User, Account, Trade, ...)
+  routes/             # API blueprints (auth, trades, metrics, ...)
+  services/           # Business logic (TradeService, AnalyticsService)
 web/
-  templates/          # Jinja2 templates (dashboard, trades, favorites)
+  templates/          # Jinja2 templates (dashboard, trades, analytics, ...)
   routes/             # Web page routes
-desktop/
-  renderer/           # Electron widget (index.html, widget.js, widget.css)
+  static/             # CSS/JS assets
 tests/
   conftest.py         # Fixtures (app, client, sample_trade_data)
-  test_trades.py      # Trade API tests
-  test_metrics.py     # Metrics API tests
-  e2e/                # End-to-end tests (Playwright)
+  trades/             # Trade API tests
+  journal/            # Analytics and broker tests
+  auth/               # Authentication tests
+  accounts/           # Account API tests
+  favorites/          # Favorites API tests
+  e2e/                # Playwright end-to-end tests
+migrations/
+  versions/           # Alembic migrations (SQLite)
 plans/
   features/           # Feature/testing plan files (FEA-*.md)
-  fixes/               # Bug fix plan files (FIX-*.md)
-  debugs/              # Debug investigation plans (DBG-*.md)
+  fixes/              # Bug fix plan files (FIX-*.md)
+  debugs/             # Debug investigation plans (DBG-*.md)
 ```
 
 ## HTMX Navigation
 
-The v2 redesign uses HTMX for SPA-like navigation:
+The dashboard uses HTMX for SPA-like navigation:
 
 - Sidebar persists across page transitions (no full reloads)
 - `hx-get` attributes on sidebar links trigger AJAX requests
@@ -120,6 +134,7 @@ The v2 redesign uses HTMX for SPA-like navigation:
 - Enum columns: `db.Column(db.Enum(TradeDirection))`
 - JSON columns for arrays/objects: `db.Column(db.JSON)`
 - Always implement `to_dict()` and `__repr__()`
+- Keep schema changes in Alembic migrations, not `db.create_all()`
 
 ### Routes
 
@@ -134,6 +149,7 @@ The v2 redesign uses HTMX for SPA-like navigation:
 - Each test function gets a fresh database (function-scoped `app` fixture)
 - Test class per endpoint: `TestCreateTrade`, `TestGetTrades`
 - Use `client.post()` with `data=json.dumps(payload)`, `content_type="application/json"`
+- Tests run on in-memory SQLite; no external services
 
 ## API Patterns
 
@@ -164,25 +180,4 @@ return jsonify({"items": [i.to_dict() for i in pagination.items], "total": pagin
 - `take_profit` field serves as the exit price for closed trades
 - `exit_transactions` array tracks partial exits with qty, exit_price, fees
 - Trade status: `CONFIRMED` (open) → `CLOSED` (has take_profit or exit_transactions)
-
-## Testing Plans
-
-User journey testing plans are stored in `.opencode/plans/features/`:
-
-```bash
-# List all test plans
-ls .opencode/plans/features/FEA-*.md
-
-# Desktop Widget Testing Sessions (5 total)
-FEA-001-test-session-1.md   # Login + Add Trade (Basic)
-FEA-002-test-session-2.md   # Window Controls + Screenshot
-FEA-003-test-session-3.md  # Logout + Settings Menu
-FEA-004-test-session-4.md  # Partial Exits + View All
-FEA-005-test-session-5.md  # Auto-Save + Final Review
-
-# Run tests by keyword
-python -m pytest tests/ -k "create_trade" -v
-
-# Run E2E tests
-python -m pytest tests/e2e/ -v
-```
+- SQLite runs with foreign keys, WAL mode and a busy timeout enabled

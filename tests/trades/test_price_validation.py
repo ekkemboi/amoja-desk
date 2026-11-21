@@ -1,4 +1,4 @@
-"""Price validation tests for TradeLogger API.
+"""Price validation tests for Amoja Desk API.
 
 Tests validation guardrails for:
 - LONG trades: TP must be > entry, SL must be < entry

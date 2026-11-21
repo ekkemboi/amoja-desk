@@ -1,9 +1,10 @@
 """Tests for broker sync service."""
 
 import json
+from datetime import datetime
 
 import pytest
-from src.models import BrokerConnection, db
+from src.models import BrokerConnection, User, db
 
 
 class TestBrokerConnectionModel:
@@ -57,8 +58,16 @@ class TestBrokerConnectionModel:
 
     def test_connection_user_isolation(self, app, default_user):
         with app.app_context():
+            other = User(
+                email="other@example.com",
+                name="Other User",
+                auth_provider="email",
+            )
+            db.session.add(other)
+            db.session.flush()
+
             c1 = BrokerConnection(user_id=default_user, broker="tradovate", label="Mine")
-            c2 = BrokerConnection(user_id="other-user", broker="tradovate", label="Theirs")
+            c2 = BrokerConnection(user_id=other.id, broker="tradovate", label="Theirs")
             db.session.add_all([c1, c2])
             db.session.commit()
 
@@ -156,17 +165,27 @@ class TestBrokerSyncAPI:
             deleted = BrokerConnection.query.get(conn_id)
             assert deleted is None
 
-    def test_trigger_sync(self, auth_client, app, default_user):
+    @pytest.mark.parametrize("last_sync_at", [None, datetime(2026, 1, 1)])
+    def test_trigger_sync(self, auth_client, app, default_user, last_sync_at):
+        """Unavailable sync returns an error and preserves the last real sync."""
         with app.app_context():
-            conn = BrokerConnection(user_id=default_user, broker="tradovate", label="Sync Test")
+            conn = BrokerConnection(
+                user_id=default_user,
+                broker="tradovate",
+                label="Sync Test",
+                last_sync_at=last_sync_at,
+            )
             db.session.add(conn)
             db.session.commit()
             conn_id = conn.id
 
         response = auth_client.post(f"{self.BROKERS_URL}/{conn_id}/sync")
-        assert response.status_code == 200
+        assert response.status_code == 501
         data = response.get_json()
-        assert "status" in data
+        assert "not available" in data["error"]
+        with app.app_context():
+            saved = db.session.get(BrokerConnection, conn_id)
+            assert saved.last_sync_at == last_sync_at
 
     def test_get_sync_status(self, auth_client, app, default_user):
         with app.app_context():

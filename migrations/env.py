@@ -16,6 +16,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
+import os
 import sys
 
 sys.path.insert(0, ".")
@@ -23,6 +24,24 @@ sys.path.insert(0, ".")
 from src.models import db
 
 target_metadata = db.Model.metadata
+
+
+def get_database_url() -> str:
+    """Return the environment URL or the alembic.ini default."""
+    url = os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    config.set_main_option("sqlalchemy.url", url)
+    return url
+
+
+def ensure_sqlite_directory(url: str) -> None:
+    """Create the parent directory for a file-backed SQLite database."""
+    if not url.startswith("sqlite:///"):
+        return
+    path = url.removeprefix("sqlite:///")
+    if not path or path == ":memory:":
+        return
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -42,12 +61,14 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_database_url()
+    ensure_sqlite_directory(url)
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -61,6 +82,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    url = get_database_url()
+    ensure_sqlite_directory(url)
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -68,7 +91,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            render_as_batch=True,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

@@ -1,4 +1,4 @@
-"""Authentication routes for TradeLogger."""
+"""Authentication routes for Amoja Desk."""
 
 import jwt
 from authlib.integrations.flask_client import OAuth
@@ -108,8 +108,7 @@ def register():
 def login():
     """Login with email and password.
 
-    For desktop: returns JSON with redirect_url to tradelogger:// protocol.
-    For web: returns JSON with cookies.
+    Returns JSON and sets authentication cookies.
 
     ---
     tags:
@@ -127,9 +126,6 @@ def login():
             password:
               type: string
               example: Password123!
-            source:
-              type: string
-              example: desktop
             remember_me:
               type: boolean
               example: true
@@ -143,9 +139,6 @@ def login():
               type: string
             user:
               type: object
-            redirect_url:
-              type: string
-              description: Protocol URL for desktop login
       401:
         description: Invalid credentials
     """
@@ -153,9 +146,7 @@ def login():
     if not data:
         return jsonify({"error": "Request body required"}), 400
 
-    current_app.logger.info(
-        f"Login request: email={data.get('email')}, source={data.get('source')}"
-    )
+    current_app.logger.info(f"Login request: email={data.get('email')}")
 
     email = data.get("email", "").strip()
     password = data.get("password", "")
@@ -168,24 +159,6 @@ def login():
     access_token = generate_access_token(user.id, user.email)
     refresh_token = generate_refresh_token(user.id)
 
-    # Check if this is a desktop login
-    source = data.get("source")
-
-    if source == "desktop":
-        current_app.logger.info("Desktop login detected, returning protocol URL")
-        # For desktop: return JSON with redirect URL
-        # Always use protocol URL - the OAuth flow handles the callback
-        remember_me = data.get("remember_me", False)
-        protocol_url = (
-            f"tradelogger://auth?status=success"
-            f"&access_token={access_token}"
-            f"&refresh_token={refresh_token}"
-            f"&remember_me={str(remember_me).lower()}"
-        )
-        current_app.logger.info(f"Returning redirect_url: {protocol_url[:50]}...")
-        return jsonify({"message": "Login successful", "redirect_url": protocol_url})
-
-    # For web: return JSON and set cookies
     response = jsonify({"message": "Login successful", "user": user.to_dict()})
     set_auth_cookies(response, access_token, refresh_token)
 
@@ -213,11 +186,6 @@ def google_login():
     state = auth_service.generate_oauth_state()
     session["oauth_state"] = state
 
-    # Store source (desktop vs web) in session for callback
-    source = request.args.get("source")
-    if source:
-        session["oauth_source"] = source
-
     redirect_uri = current_app.config.get("GOOGLE_REDIRECT_URI")
     return google.authorize_redirect(redirect_uri, state=state)
 
@@ -226,8 +194,7 @@ def google_login():
 def google_callback():
     """Handle Google OAuth callback.
 
-    For desktop: returns JSON with redirect_url to tradelogger:// protocol.
-    For web: returns JSON with cookies.
+    Returns JSON and sets authentication cookies.
 
     ---
     tags:
@@ -242,9 +209,6 @@ def google_callback():
               type: string
             user:
               type: object
-            redirect_url:
-              type: string
-              description: Protocol URL for desktop login
     """
     google = get_google_client()
     if not google:
@@ -256,9 +220,6 @@ def google_callback():
 
     if not state or state != stored_state:
         return jsonify({"error": "Invalid state parameter"}), 400
-
-    # Get source from session (desktop vs web)
-    source = session.pop("oauth_source", None)
 
     try:
         # Get token and user info from Google
@@ -284,19 +245,6 @@ def google_callback():
         access_token = generate_access_token(user.id, user.email)
         refresh_token = generate_refresh_token(user.id)
 
-        if source == "desktop":
-            # For desktop: return JSON with protocol redirect URL
-            protocol_url = (
-                f"tradelogger://auth?status=success"
-                f"&access_token={access_token}"
-                f"&refresh_token={refresh_token}"
-                f"&remember_me=true"
-            )
-            return jsonify(
-                {"message": "Login successful", "redirect_url": protocol_url}
-            )
-
-        # For web: return JSON and set cookies
         response = jsonify({"message": "Login successful", "user": user.to_dict()})
         set_auth_cookies(response, access_token, refresh_token)
 
@@ -333,7 +281,7 @@ def refresh_token():
     """
     refresh_token_value = None
 
-    # Try Authorization header first (for desktop widget)
+    # Try Authorization header first
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         refresh_token_value = auth_header[7:]
@@ -358,7 +306,7 @@ def refresh_token():
     access_token = generate_access_token(user.id, user.email)
     new_refresh_token = generate_refresh_token(user.id)
 
-    # Return tokens in JSON for desktop widget, or set cookies for web
+    # Return tokens in JSON and set cookies for web clients
     response_data = {
         "message": "Token refreshed successfully",
         "access_token": access_token,
@@ -439,7 +387,7 @@ def auth_status():
 
     token = None
 
-    # Try to get token from Authorization header first (for desktop widget)
+    # Try to get token from Authorization header first
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]

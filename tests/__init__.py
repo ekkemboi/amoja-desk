@@ -1,1 +1,1 @@
-"""Tests for TradeLogger."""
+"""Tests for Amoja Desk."""

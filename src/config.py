@@ -1,4 +1,4 @@
-"""Configuration for TradeLogger."""
+"""Configuration for Amoja Desk."""
 
 import os
 from datetime import timedelta
@@ -9,9 +9,10 @@ class Config:
     """Base configuration."""
 
     BASE_DIR = Path(__file__).parent.parent
+    DEFAULT_SQLITE_PATH = BASE_DIR / "instance" / "amoja-desk.db"
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
     SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", "postgresql://localhost/tradelogger"
+        "DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SCREENSHOT_DIR = BASE_DIR / "screenshots"
@@ -32,20 +33,15 @@ class Config:
     )
 
     # Cookie Security
-    # For desktop widget support, use Secure=True + SameSite=None
-    # Localhost is treated as secure by modern browsers, so this works for dev
-    JWT_COOKIE_SECURE = True  # Required for SameSite=None
-    JWT_COOKIE_SAMESITE = "None"  # Allows desktop widget cross-origin requests
+    JWT_COOKIE_SECURE = True
+    JWT_COOKIE_SAMESITE = "Lax"
 
 
 class DevelopmentConfig(Config):
     """Development configuration."""
 
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL",
-        "postgresql://tradelogger:tradelogger@localhost:5432/tradelogger_dev",
-    )
+    JWT_COOKIE_SECURE = False
 
 
 class TestingConfig(Config):
@@ -63,19 +59,21 @@ class ProductionConfig(Config):
     """Production configuration."""
 
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
 
     def __init__(self):
         """Validate required configuration."""
         super().__init__()
-        if not os.environ.get("SECRET_KEY"):
-            raise ValueError(
-                "SECRET_KEY environment variable must be set in production"
-            )
-        if not os.environ.get("JWT_SECRET_KEY"):
-            raise ValueError(
-                "JWT_SECRET_KEY environment variable must be set in production"
-            )
+        for name in ("SECRET_KEY", "JWT_SECRET_KEY"):
+            value = os.environ.get(name)
+            if not value or not value.strip():
+                raise ValueError(
+                    f"{name} environment variable must be set in production"
+                )
+            setattr(self, name, value)
+
+        database_url = os.environ.get("DATABASE_URL")
+        if database_url:
+            self.SQLALCHEMY_DATABASE_URI = database_url
 
 
 config = {

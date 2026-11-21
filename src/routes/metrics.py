@@ -1,4 +1,4 @@
-"""Metrics routes for TradeLogger API."""
+"""Metrics routes for Amoja Desk API."""
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func

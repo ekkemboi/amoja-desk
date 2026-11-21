@@ -1,7 +1,5 @@
 """Broker sync API routes."""
 
-from datetime import datetime
-
 from flasgger import swag_from
 from flask import Blueprint, g, jsonify, request
 
@@ -88,15 +86,14 @@ def delete_connection(conn_id):
 @brokers_bp.route("/brokers/<conn_id>/sync", methods=["POST"])
 @jwt_required
 def trigger_sync(conn_id):
+    """Report unavailable broker sync without recording a successful sync."""
     conn = BrokerConnection.query.filter_by(id=conn_id, user_id=g.current_user_id).first()
     if not conn:
         return jsonify({"error": "Connection not found"}), 404
 
-    # Mark last sync time (actual sync implementation comes later)
-    conn.last_sync_at = datetime.utcnow()
-    db.session.commit()
-
-    return jsonify({"status": "synced", "last_sync_at": conn.last_sync_at.isoformat()})
+    return jsonify(
+        {"error": "Broker sync is not available yet. Import trades using CSV."}
+    ), 501
 
 
 @brokers_bp.route("/brokers/<conn_id>/sync-status", methods=["GET"])

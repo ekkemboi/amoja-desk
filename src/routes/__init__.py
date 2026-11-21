@@ -1,1 +1,1 @@
-"""API routes for TradeLogger."""
+"""API routes for Amoja Desk."""

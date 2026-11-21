@@ -1,18 +1,14 @@
 """E2E test fixtures for Playwright - session-scoped page."""
 
 import pytest
-import os
-from playwright.sync_api import sync_playwright, Browser
+from playwright.sync_api import sync_playwright
 
 
 @pytest.fixture(scope="session")
 def browser():
-    """Create a session-scoped browser instance with CORS disabled."""
+    """Create a session-scoped browser instance."""
     pw = sync_playwright().start()
-    browser = pw.chromium.launch(
-        headless=False,
-        args=["--disable-web-security", "--allow-file-access-from-files"],
-    )
+    browser = pw.chromium.launch(headless=False)
     yield browser
     browser.close()
     pw.stop()
@@ -47,22 +43,3 @@ def cleanup_page(page):
 def base_url():
     """Base URL for the application."""
     return "http://localhost:5000"
-
-
-@pytest.fixture(scope="session")
-def widget_file_path():
-    """Get the absolute path to widget HTML file."""
-    return os.path.abspath(
-        os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "desktop",
-            "renderer",
-            "index.html",
-        )
-    )
-
-
-@pytest.fixture(scope="session")
-def widget_url(widget_file_path):
-    """Get file:// URL for widget HTML."""
-    return f"file://{widget_file_path}"

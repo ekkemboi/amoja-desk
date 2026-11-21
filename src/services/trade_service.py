@@ -17,20 +17,20 @@ class TradeService:
     """Service for trade operations."""
 
     @staticmethod
-    def get_point_value(symbol):
-        """Get point value from favorite product."""
+    def get_point_value(symbol, user_id):
+        """Get the owner's point value for a favorite product."""
         favorite = FavoriteProduct.query.filter_by(
-            symbol=symbol.upper(), is_active=True
+            symbol=symbol.upper(), user_id=user_id, is_active=True
         ).first()
         if favorite and favorite.point_value:
             return Decimal(str(favorite.point_value))
         return Decimal("1")
 
     @staticmethod
-    def get_default_fees(symbol):
-        """Get default fees from favorite product."""
+    def get_default_fees(symbol, user_id):
+        """Get the owner's default fees for a favorite product."""
         favorite = FavoriteProduct.query.filter_by(
-            symbol=symbol.upper(), is_active=True
+            symbol=symbol.upper(), user_id=user_id, is_active=True
         ).first()
         if favorite and favorite.fees:
             return Decimal(str(favorite.fees))
@@ -42,7 +42,10 @@ class TradeService:
         entry = Decimal(str(trade.entry_price))
         size = Decimal(str(trade.position_size or 1))
         fees = Decimal(str(trade.fees or 0))
-        point_value = TradeService.get_point_value(trade.symbol)
+        point_value = TradeService.get_point_value(trade.symbol, trade.user_id)
+        closing_price = (
+            trade.exit_price if trade.exit_price is not None else trade.take_profit
+        )
 
         is_long = trade.direction == TradeDirection.LONG
 
@@ -62,10 +65,10 @@ class TradeService:
                     total_pnl += (entry - exit_price) * qty * point_value - exit_fees
                 exited_qty += qty
 
-            # Calculate remaining position using take_profit
+            # Use the actual exit price for the remaining position when supplied.
             remaining_qty = size - exited_qty
-            if remaining_qty > 0 and trade.take_profit:
-                tp = Decimal(str(trade.take_profit))
+            if remaining_qty > 0 and closing_price is not None:
+                tp = Decimal(str(closing_price))
                 if is_long:
                     total_pnl += (tp - entry) * remaining_qty * point_value
                 else:
@@ -88,16 +91,23 @@ class TradeService:
                     total_pnl += (entry - exit_price) * qty * point_value - exit_fees
                 exited_qty += qty
 
-            # Calculate remaining position using take_profit
+            # Use the actual exit price for the remaining position when supplied.
             remaining_qty = size - exited_qty
-            if remaining_qty > 0 and trade.take_profit:
-                tp = Decimal(str(trade.take_profit))
+            if remaining_qty > 0 and closing_price is not None:
+                tp = Decimal(str(closing_price))
                 if is_long:
                     total_pnl += (tp - entry) * remaining_qty * point_value
                 else:
                     total_pnl += (entry - tp) * remaining_qty * point_value
 
             return total_pnl
+
+        # An actual fill takes precedence over planned targets and outcomes.
+        if trade.exit_price is not None:
+            price_diff = Decimal(str(trade.exit_price)) - entry
+            if not is_long:
+                price_diff = -price_diff
+            return price_diff * size * point_value - fees
 
         outcome = trade.outcome
 
@@ -145,7 +155,7 @@ class TradeService:
         # Get fees from favorite if not provided
         fees = data.get("fees")
         if fees is None:
-            fees = TradeService.get_default_fees(symbol)
+            fees = TradeService.get_default_fees(symbol, data.get("user_id"))
         else:
             fees = Decimal(str(fees))
 
@@ -183,6 +193,9 @@ class TradeService:
             exited_at=datetime.utcnow() if is_closed else None,
         )
 
+        if trade.exit_price is not None and not outcome:
+            trade.outcome = TradeService._outcome_from_exit(trade)
+
         trade.pnl = TradeService.calculate_pnl(trade)
 
         db.session.add(trade)
@@ -213,6 +226,18 @@ class TradeService:
             db.session.commit()
 
         return trade
+
+    @staticmethod
+    def _outcome_from_exit(trade):
+        """Infer the trade outcome from the actual entry and exit prices."""
+        price_diff = trade.exit_price - trade.entry_price
+        if trade.direction == TradeDirection.SHORT:
+            price_diff = -price_diff
+        if price_diff > 0:
+            return TradeOutcome.WIN
+        if price_diff < 0:
+            return TradeOutcome.LOSS
+        return TradeOutcome.BREAK_EVEN
 
     @staticmethod
     def get_trades(filters=None, page=1, per_page=50):
@@ -270,6 +295,14 @@ class TradeService:
 
         if "exit_transactions" in data:
             trade.exit_transactions = data["exit_transactions"]
+            trade.partial_exits = [
+                TradePartialExit(
+                    qty=Decimal(str(tx["qty"])),
+                    exit_price=Decimal(str(tx["exit_price"])),
+                    fees=Decimal(str(tx.get("fees") or 0)),
+                )
+                for tx in data["exit_transactions"] or []
+            ]
             if data["exit_transactions"]:
                 trade.exited_at = datetime.utcnow()
                 trade.outcome = TradeOutcome.WIN
@@ -282,6 +315,15 @@ class TradeService:
 
         if "entry_price" in data:
             trade.entry_price = Decimal(str(data["entry_price"]))
+
+        if "exit_price" in data:
+            trade.exit_price = (
+                Decimal(str(data["exit_price"]))
+                if data["exit_price"] is not None
+                else None
+            )
+            if trade.exit_price is not None:
+                trade.exited_at = datetime.utcnow()
 
         if "stop_loss" in data:
             trade.stop_loss = (
@@ -301,6 +343,17 @@ class TradeService:
             trade.fees = Decimal(str(data["fees"]))
         if "trade_date" in data:
             trade.trade_date = date.fromisoformat(data["trade_date"])
+
+        if trade.exit_price is not None:
+            trade.outcome = TradeService._outcome_from_exit(trade)
+        elif (
+            any(key in data for key in ("exit_price", "take_profit", "exit_transactions"))
+            and trade.take_profit is None
+            and not trade.partial_exits
+            and not trade.exit_transactions
+        ):
+            trade.outcome = None
+            trade.exited_at = None
 
         trade.pnl = TradeService.calculate_pnl(trade)
         trade.updated_at = datetime.utcnow()

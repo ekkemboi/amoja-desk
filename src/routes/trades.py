@@ -1,7 +1,7 @@
-"""Trade routes for TradeLogger API."""
+"""Trade routes for Amoja Desk API."""
 
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from flasgger import swag_from
 from flask import Blueprint, g, jsonify, request, send_from_directory
@@ -11,6 +11,18 @@ from src.services.trade_service import TradeService
 from src.utils.jwt_utils import jwt_required
 
 trades_bp = Blueprint("trades", __name__)
+
+
+def _valid_exit_price(data):
+    """Check an optional actual exit price before invoking the trade service."""
+    value = data.get("exit_price")
+    if value is None:
+        return True
+    try:
+        price = Decimal(str(value))
+        return price.is_finite() and price > 0
+    except InvalidOperation:
+        return False
 
 
 @trades_bp.route("/screenshots/<filename>")
@@ -81,15 +93,17 @@ def create_trade():
     """
     data = request.form.to_dict() if request.form else request.get_json()
 
-    # Parse exit_transactions if it's a JSON string (sent from widget via FormData)
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    if not _valid_exit_price(data):
+        return jsonify({"error": "Exit price must be a positive finite number"}), 400
+
+    # Parse exit_transactions if it's a JSON string (sent via multipart form data)
     if "exit_transactions" in data and isinstance(data["exit_transactions"], str):
         try:
             data["exit_transactions"] = json.loads(data["exit_transactions"])
         except (json.JSONDecodeError, ValueError):
             data["exit_transactions"] = []
-
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
 
     required = ["symbol", "direction", "entry_price"]
     for field in required:
@@ -339,6 +353,9 @@ def update_trade(trade_id):
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
+
+    if not _valid_exit_price(data):
+        return jsonify({"error": "Exit price must be a positive finite number"}), 400
 
     if "symbol" in data and (not data["symbol"] or not data["symbol"].strip()):
         return jsonify({"error": "Symbol must be a non-empty string"}), 400

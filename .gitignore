@@ -26,14 +26,19 @@ build/
 # Database
 *.db
 *.sqlite
+instance/*.db-wal
+instance/*.db-shm
+backups/
 
 # Screenshots (large files)
 screenshots/*.png
 screenshots/*.jpg
 
-# Node/Electron
-desktop/node_modules/
-desktop/dist/
+# Node
+node_modules/
+
+# Test caches
+.pytest_cache/
 
 # OS
 .DS_Store

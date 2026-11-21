@@ -20,7 +20,7 @@ def test_dashboard_loads_successfully(page: Page, base_url: str):
         lambda msg: console_errors.append(msg.text) if msg.type == "error" else None,
     )
 
-    assert "TradeLogger" in page.title() or "Dashboard" in page.content()
+    assert "Amoja Desk" in page.title() or "Dashboard" in page.content()
 
 
 @pytest.mark.e2e

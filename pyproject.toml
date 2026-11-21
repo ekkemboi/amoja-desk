@@ -1,19 +1,34 @@
 [project]
-name = "tradelogger"
+name = "amoja-desk"
 version = "0.1.0"
-description = "Trade logging system with Electron widget and web dashboard"
+description = "Trade logging system with web dashboard"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
-    "flasgger>=0.9.7.1",
     "alembic>=1.18.0",
+    "authlib>=1.6.9",
+    "bcrypt>=5.0.0",
+    "flasgger>=0.9.7.1",
+    "flask>=3.1.3",
+    "flask-cors>=5.0.1",
+    "flask-sqlalchemy>=3.1.1",
+    "flask-wtf>=1.2.2",
+    "gunicorn>=23.0.0",
+    "pyjwt>=2.12.1",
+    "requests>=2.33.1",
+    "sqlalchemy>=2.0.49",
 ]
+
+[dependency-groups]
+dev = ["pytest>=9.0.2", "pytest-playwright>=0.7.2"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src", "web"]
 
 [tool.ruff]
 line-length = 88
