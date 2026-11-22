@@ -52,3 +52,6 @@ Thumbs.db
 
 # Config
 .yml
+
+# Internal documentation
+/docs/
